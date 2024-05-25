@@ -1,7 +1,7 @@
 import pygame
-import math
 import pygame.locals as pyg
 from random import randint
+from entities import Player, EnemyEasy, EnemyMedium, Bullet
 
 pygame.init()
 
@@ -14,72 +14,11 @@ running = True
 
 ADDENEMY = pygame.USEREVENT + 1
 
-pygame.time.set_timer(ADDENEMY, 500)
-
-
-class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super(Player, self).__init__()
-
-        self.surf = pygame.image.load("./alberto.jpg")
-        self.rect = self.surf.get_rect(center=(575, 425))
-
-    def update(self, pressed_keys):
-        if pressed_keys[pyg.K_UP] or pressed_keys[pyg.K_w]:
-            self.rect.move_ip(0, -10)
-        if pressed_keys[pyg.K_DOWN] or pressed_keys[pyg.K_s]:
-            self.rect.move_ip(0, 10)
-
-        if pressed_keys[pyg.K_LEFT] or pressed_keys[pyg.K_a]:
-            self.rect.move_ip(-10, 0)
-
-        if pressed_keys[pyg.K_RIGHT] or pressed_keys[pyg.K_d]:
-            self.rect.move_ip(10, 0)
-
-        # Keep player on the screen
-        if self.rect.left < 0:
-            self.rect.left = 0
-
-        if self.rect.right > SCREEN_WIDTH:
-            self.rect.right = SCREEN_WIDTH
-
-        if self.rect.top <= 0:
-            self.rect.top = 0
-
-        if self.rect.bottom >= SCREEN_HEIGHT:
-            self.rect.bottom = SCREEN_HEIGHT
-
-
-class Enemy(pygame.sprite.Sprite):
-    def __init__(self, player_x, player_y):
-        super(Enemy, self).__init__()
-        # self.surf = pygame.Surface((75, 75))
-        self.surf = pygame.image.load("nathan.jpg").convert()
-        enemy_x, enemy_y = randint(0, SCREEN_WIDTH), randint(50, 150)
-        self.rect = self.surf.get_rect(
-            center=(enemy_x, enemy_y)
-        )
-        self.accel = randint(1, 10)*0.1
-
-        o, a = (player_x-enemy_x, player_y-enemy_y)
-
-        self.angle = math.atan(o/a)  # * (180/math.pi)
-        self.speed = randint(5, 10)
-        print(self.angle*180/math.pi)
-        self.y_vel = (math.cos(self.angle) * self.speed)
-        self.x_vel = (math.sin(self.angle) * self.speed)
-
-    def update(self):
-        self.rect.move_ip(self.x_vel, self.y_vel)
-        if self.rect.bottom > SCREEN_HEIGHT or self.rect.right > SCREEN_WIDTH or self.rect.left < 0:
-            self.kill()
-        if self.speed < 30:
-            self.speed += self.accel
-            self.y_vel = (math.cos(self.angle) * (self.speed))
-            self.x_vel = (math.sin(self.angle) * (self.speed))
+pygame.time.set_timer(ADDENEMY, 750)
 
 
 enemies = pygame.sprite.Group()
+bullets = pygame.sprite.Group()
 
 all = pygame.sprite.Group()
 
@@ -87,6 +26,8 @@ clock = pygame.time.Clock()
 
 player = Player()
 all.add(player)
+shooting = False
+reload = 0
 
 while running:
     for event in pygame.event.get():
@@ -94,21 +35,53 @@ while running:
         if event.type == pyg.QUIT:
             running = False
         elif event.type == ADDENEMY:
-            new_enemy = Enemy(player.rect.centerx, player.rect.centery)
+            if randint(0, 1) == 0:
+                new_enemy = EnemyEasy(player.rect.centerx, player.rect.centery)
+            else:
+                new_enemy = EnemyMedium()
+
             enemies.add(new_enemy)
             all.add(new_enemy)
+        elif event.type == pyg.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                shooting = True
+        elif event.type ==pyg.MOUSEBUTTONUP:
+            if event.button == 1:
+                shooting = False
 
     screen.fill((135, 206, 250))
     pressed_keys = pygame.key.get_pressed()
 
     player.update(pressed_keys)
-    enemies.update()
+    bullets.update()
+    for enemy in enemies:
+        if pygame.sprite.spritecollideany(enemy, bullets):
+            enemy.kill()
+        if enemy.kind == 1:
+            enemy.update()
+        elif enemy.kind == 2:
+            enemy.update(player.rect.centerx, player.rect.centery)
+
+    if shooting == True:
+        if reload == 0:
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            new_bullet = Bullet(player.rect.center, mouse_x, mouse_y)
+            bullets.add(new_bullet)
+            reload = 5
+    
+    if reload != 0:
+        reload -= 1
+        
+
+    for bullet in bullets:
+        screen.blit(bullet.surf, bullet.rect)
 
     for sprite in all:
         screen.blit(sprite.surf, sprite.rect)
 
     if pygame.sprite.spritecollideany(player, enemies):
         running = False
+
 
     pygame.display.flip()
     clock.tick(60)
